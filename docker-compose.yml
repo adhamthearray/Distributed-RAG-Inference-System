@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: load_balancer
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - node1
+      - node2
+      - node3
+    networks:
+      - rag_net
+    restart: always
+
+  node1:
+    build: .
+    container_name: worker_1
+    env_file:
+      - .env
+    volumes:
+      - ./chroma_db:/app/chroma_db
+    networks:
+      - rag_net
+    restart: always
+
+  node2:
+    build: .
+    container_name: worker_2
+    env_file:
+      - .env
+    volumes:
+      - ./chroma_db:/app/chroma_db
+    networks:
+      - rag_net
+    restart: always
+
+  node3:
+    build: .
+    container_name: worker_3
+    env_file:
+      - .env
+    volumes:
+      - ./chroma_db:/app/chroma_db
+    networks:
+      - rag_net
+    restart: always
+
+networks:
+  rag_net:
+    driver: bridge
