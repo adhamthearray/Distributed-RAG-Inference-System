@@ -27,7 +27,7 @@ collection = chroma_client.get_or_create_collection(name="distributedComputing")
 def ask_question(user_query):
     results = collection.query(
     query_embeddings=[embedding_model.embed_query(user_query)],
-    n_results=4
+    n_results=6
 )
     client = Groq(api_key=os.getenv("GROQAPI"))
     system_prompt = """
@@ -47,7 +47,9 @@ Course documents:
         {"role": "user", "content": user_query}
     ],
 )
-    return response.choices[0].message.content
+    answer = response.choices[0].message.content
+    chunks = results['documents'][0] if results['documents'] else []
+    return answer, chunks
 
 
 
