@@ -23,6 +23,7 @@ TASK_TIMEOUT = float(os.environ.get("TASK_TIMEOUT", 60.0))
 SIMULATE_WORKER_FAILURE = os.environ.get("SIMULATE_WORKER_FAILURE", "false").lower() == "true"
 SIMULATED_FAILURE_DELAY = float(os.environ.get("SIMULATED_FAILURE_DELAY", TASK_TIMEOUT + 5))
 simulate_next_worker_failure = SIMULATE_WORKER_FAILURE
+WORKER_RECOVERY_DELAY = float(os.environ.get("WORKER_RECOVERY_DELAY", 30.0))
 
 class Master:
     def __init__(self, num_workers):
@@ -91,6 +92,7 @@ class Master:
                 with self.lock:
                     self.failed_workers.append(worker)
                     print(f"[Master] {worker.id} timed out. Moving it to failed_workers.", flush=True)
+                    threading.Thread(target=self._recover_worker_after_delay, args=(worker,)).start()
                     if self.available_workers:
                         next_worker = self.available_workers.pop()
                         print(f"[Master] Reassigning task {task['task_id']} to {next_worker.id}", flush=True)
@@ -119,6 +121,22 @@ class Master:
                     threading.Thread(target=self._execute_task, args=(worker, next_task, next_event, next_result_container)).start()
                 else:
                     self.available_workers.append(worker)
+
+    def _recover_worker_after_delay(self, worker):
+        import time
+
+        time.sleep(WORKER_RECOVERY_DELAY)
+
+        with self.lock:
+            try:
+                self.failed_workers.remove(worker)
+            except ValueError:
+                return
+
+            worker.simulate_failure = False
+            worker.failure_delay = 0
+            self.available_workers.append(worker)
+            print(f"[Master] {worker.id} recovered and returned to available_workers.", flush=True)
 
 master = Master(num_workers=NUM_WORKERS)
 

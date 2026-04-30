@@ -25,6 +25,7 @@ services:
       - TASK_TIMEOUT=5
       - RATE_LIMIT_DELAY=0
       - SIMULATE_WORKER_FAILURE=true
+      - WORKER_RECOVERY_DELAY=10
     volumes:
       - ./chroma_db:/app/chroma_db
     networks:
