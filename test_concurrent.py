@@ -16,7 +16,6 @@ async def fetch(session, task_id, query):
             worker_id = result.get('worker_id', 'Unknown')
             error = result.get('error')
             answer = result.get('answer', 'No answer returned')
-            chunks = result.get('chunks', [])
             
             if error:
                 print(f"[Task {task_id}] ERROR: {error}\n")
@@ -24,11 +23,6 @@ async def fetch(session, task_id, query):
                 print(f"[Task {task_id}] finished in {elapsed:.2f}s | Handled by: {worker_id}")
                 print(f"      Q: {query}")
                 print(f"      A: {answer}")
-                print(f"      [CHUNKS USED]:")
-                for c_idx, chunk in enumerate(chunks):
-                    # print first 150 chars and remove newlines to keep it readable
-                    clean_chunk = chunk.replace('\n', ' ').strip()
-                    print(f"        {c_idx+1}. {clean_chunk[:150]}...")
                 print("\n")
                 
             return result

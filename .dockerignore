@@ -1,0 +1,14 @@
+.git
+.DS_Store
+__pycache__/
+*.pyc
+
+.env
+**/.env
+
+venv/
+.venv/
+rag-env/
+
+load_test.py
+test_concurrent.py

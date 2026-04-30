@@ -48,8 +48,7 @@ Course documents:
     ],
 )
     answer = response.choices[0].message.content
-    chunks = results['documents'][0] if results['documents'] else []
-    return answer, chunks
+    return answer
 
 
 
@@ -65,5 +64,4 @@ Course documents:
 
 
 #print(system_prompt)
-
 

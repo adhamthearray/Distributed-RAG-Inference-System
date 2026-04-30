@@ -15,16 +15,13 @@ Initially, the compute nodes were running as single-threaded `Flask` application
 The Groq API free tier imposes a strict limit of **6000 Tokens Per Minute (TPM)**. Because each query demands ~1300 tokens, concurrent bursts (e.g., 10 simultaneous requests) instantly exceed this limit, causing `429 Rate Limit Exceeded` errors. We implemented a two-layered defense to overcome this:
 
 * **Staggered Execution (Master Node)**: Added a configurable `RATE_LIMIT_DELAY` (2.0 seconds) in the Master's dispatch loop. This artificially slows down the execution rate across threads to spread the token burn over time rather than instantaneously.
-* **Intelligent Exponential Backoff (Worker Node)**: In `Worker.py`, the LLM API call is wrapped in a retry loop (up to 5 attempts).
-  * If the worker receives a `429 Rate Limit` error, it uses regular expressions to parse the exact cooldown duration requested by Groq (e.g., extracting `12.97s` from the error message).
-  * The thread is instructed to `time.sleep(wait_time + 1.0s)` silently, and then safely retry the execution. This ensures requests are dynamically throttled and eventually succeed without crashing the system.
+* **Worker Error Handling (`Worker.py`)**: If the LLM call fails, the worker returns a clear execution error instead of crashing the request.
 
 ## 3. RAG Pipeline & Vector DB Optimizations
 The previous chunking parameters caused the LLM to reply "I don't know" to many questions because critical context was fragmented or missed during retrieval.
 
 * **Chunking Strategy (`fill_db.py`)**: Increased `chunk_size` from `300` to `1000` characters, and increased `chunk_overlap` from `100` to `200`. This ensures paragraphs, definitions, and bulleted lists remain intact.
 * **Retrieval Window (`ask.py`)**: Increased `n_results` from `4` to `6`, providing the LLM with a broader context window.
-* **Transparency**: Modified the RAG pipeline to return the exact vector `chunks` used alongside the answer, allowing engineers to verify exactly what context the model was looking at.
 
 ## 4. Deployment Enhancements
 * **Baked-in Vector Database (`Dockerfile`)**: We modified the Docker build process to execute `RUN python RAG_system/RAG/fill_db.py` directly during the `--build` phase. 

@@ -4,6 +4,7 @@ import threading
 import asyncio
 from collections import deque
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from Worker import WorkerNode
 
@@ -43,7 +44,7 @@ class Master:
         try:
             # Artificially slow down task execution to avoid instantly hitting the 6000 TPM limit
             time.sleep(RATE_LIMIT_DELAY)
-            
+
             # The actual execution happens here (calling RAG/LLM inside processTask)
             result = worker.processTask(task)
             result_container.update(result)
@@ -70,10 +71,14 @@ class QueryRequest(BaseModel):
 async def process_request(req: QueryRequest):
     task = {"task_id": req.id, "user_query": req.query}
     event, result_container = master.submit_task(task)
-    
+
     # Wait for the thread to finish asynchronously without blocking other FastAPI handlers
     await asyncio.to_thread(event.wait)
-    
+
+    if result_container.get("ok") is False:
+        status_code = result_container.get("status_code", 500)
+        return JSONResponse(status_code=status_code, content=result_container)
+
     return result_container
 
 @app.post("/predict")
