@@ -1,14 +1,21 @@
+import time
 from RAG_system.RAG.ask import ask_question
 
 class WorkerNode:
-    def __init__(self, workerID):
+    def __init__(self, workerID, simulate_failure=False, failure_delay=0):
         self.id = workerID
         self.status = 'idle'
+        self.simulate_failure = simulate_failure
+        self.failure_delay = failure_delay
         
     def processTask(self, task):
         self.status = 'busy'
 
         try:
+            if self.simulate_failure:
+                print(f"[{self.id}] Simulating worker failure for task {task['task_id']}", flush=True)
+                time.sleep(self.failure_delay)
+
             answer = ask_question(task['user_query'])
             return self._response(task, answer)
         except Exception as e:

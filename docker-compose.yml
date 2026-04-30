@@ -21,7 +21,10 @@ services:
     env_file:
       - RAG_system/.env
     environment:
-      - NUM_WORKERS=1
+      - NUM_WORKERS=3
+      - TASK_TIMEOUT=5
+      - RATE_LIMIT_DELAY=0
+      - SIMULATE_WORKER_FAILURE=true
     volumes:
       - ./chroma_db:/app/chroma_db
     networks:
