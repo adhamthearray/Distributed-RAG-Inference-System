@@ -1,34 +1,29 @@
-import time
 from RAG_system.RAG.ask import ask_question
 
 class WorkerNode:
-    def __init__(self, workerID, simulate_failure=False, failure_delay=0):
+    def __init__(self, workerID , GPUServer):
         self.id = workerID
         self.status = 'idle'
-        self.simulate_failure = simulate_failure
-        self.failure_delay = failure_delay
+        self.GPUServer = GPUServer
         
     def processTask(self, task):
         self.status = 'busy'
 
         try:
-            if self.simulate_failure:
-                print(f"[{self.id}] Simulating worker failure for task {task['task_id']}", flush=True)
-                time.sleep(self.failure_delay)
-
-            answer = ask_question(task['user_query'])
-            return self._response(task, answer)
+            response = ask_question(task['user_query'] , self.GPUServer)
+            return self._response(task, response)
         except Exception as e:
             return self._error_response(task, e)
         finally:
             self.status = 'idle'
 
-    def _response(self, task, answer):
+    def _response(self, task, response):
         return {
             "ok": True,
             "task_id": task["task_id"],
             "worker_id": self.id,
-            "answer": answer
+            "answer": response['answer'],
+            "gpu_utilization" : response['gpu_utilization']
         }
 
     def _error_response(self, task, error):

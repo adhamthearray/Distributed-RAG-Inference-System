@@ -9,7 +9,6 @@ services:
     depends_on:
       - node1
       - node2
-      - node3
     networks:
       - rag_net
     restart: always
@@ -19,39 +18,24 @@ services:
     build: .
     container_name: worker_1
     env_file:
-      - RAG_system/.env
+      - .env
     environment:
-      - NUM_WORKERS=3
-      - TASK_TIMEOUT=5
-      - RATE_LIMIT_DELAY=0
-      - SIMULATE_WORKER_FAILURE=true
-      - WORKER_RECOVERY_DELAY=10
+      - NUM_WORKERS=${NODE1_NUM_WORKERS}
+      - GPU_SERVERS=${GPU_SERVERS_1}
     volumes:
       - ./chroma_db:/app/chroma_db
     networks:
       - rag_net
     restart: always
-
   node2:
     image: project-worker:latest
+    build: .
     container_name: worker_2
     env_file:
-      - RAG_system/.env
+      - .env
     environment:
-      - NUM_WORKERS=1
-    volumes:
-      - ./chroma_db:/app/chroma_db
-    networks:
-      - rag_net
-    restart: always
-
-  node3:
-    image: project-worker:latest
-    container_name: worker_3
-    env_file:
-      - RAG_system/.env
-    environment:
-      - NUM_WORKERS=1
+      - NUM_WORKERS=${NODE2_NUM_WORKERS}
+      - GPU_SERVERS=${GPU_SERVERS_2}
     volumes:
       - ./chroma_db:/app/chroma_db
     networks:

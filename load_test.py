@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import csv
 import statistics
 import time
 
@@ -33,22 +34,37 @@ async def send_request(session, url, task_id, timeout):
             if response.status >= 400 or "error" in data:
                 return {
                     "ok": False,
+                    "task_id": task_id,
+                    "query": query,
                     "status": response.status,
                     "latency": elapsed,
+                    "worker_id": data.get("worker_id", "unknown"),
+                    "answer": data.get("answer"),
+                    "gpu_utilization": data.get("gpu_utilization"),
                     "error": data.get("error", "HTTP error"),
                 }
 
             return {
                 "ok": True,
+                "task_id": task_id,
+                "query": query,
                 "status": response.status,
                 "latency": elapsed,
                 "worker_id": data.get("worker_id", "unknown"),
+                "answer": data.get("answer"),
+                "gpu_utilization": data.get("gpu_utilization"),
+                "error": "",
             }
     except Exception as e:
         return {
             "ok": False,
+            "task_id": task_id,
+            "query": query,
             "status": "request_failed",
             "latency": time.perf_counter() - start,
+            "worker_id": "unknown",
+            "answer": "",
+            "gpu_utilization": "",
             "error": str(e),
         }
 
@@ -113,6 +129,56 @@ def print_summary(results, total_time):
         for failure in failures[:5]:
             print(f"- status={failure['status']} latency={failure['latency']:.2f}s error={failure['error']}")
 
+    gpu_by_worker = {}
+    for result in successes:
+        utilization = result.get("gpu_utilization")
+        if utilization is None or utilization == "":
+            continue
+
+        try:
+            utilization = float(utilization)
+        except (TypeError, ValueError):
+            continue
+
+        worker_id = result.get("worker_id", "unknown")
+        gpu_by_worker.setdefault(worker_id, []).append(utilization)
+
+    if gpu_by_worker:
+        print("\nGPU utilization summary")
+        print("-----------------------")
+        all_utilizations = []
+        for worker_id, utilizations in sorted(gpu_by_worker.items()):
+            all_utilizations.extend(utilizations)
+            print(
+                f"{worker_id}: "
+                f"avg {statistics.mean(utilizations):.1f}% | "
+                f"min {min(utilizations):.1f}% | "
+                f"max {max(utilizations):.1f}% | "
+                f"samples {len(utilizations)}"
+            )
+
+        print(f"Overall avg:     {statistics.mean(all_utilizations):.1f}%")
+
+
+def write_results_csv(results, output_path):
+    fields = [
+        "task_id",
+        "ok",
+        "status",
+        "latency",
+        "worker_id",
+        "gpu_utilization",
+        "query",
+        "answer",
+        "error",
+    ]
+
+    with open(output_path, "w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fields)
+        writer.writeheader()
+        for result in sorted(results, key=lambda item: item["task_id"]):
+            writer.writerow({field: result.get(field, "") for field in fields})
+
 
 def main():
     parser = argparse.ArgumentParser(description="Load test the distributed RAG API.")
@@ -120,6 +186,7 @@ def main():
     parser.add_argument("--users", type=int, default=1000)
     parser.add_argument("--concurrency", type=int, default=50)
     parser.add_argument("--timeout", type=float, default=300)
+    parser.add_argument("--output", default="load_test_results.csv")
     args = parser.parse_args()
 
     print(f"URL:         {args.url}")
@@ -131,6 +198,8 @@ def main():
         run_load_test(args.url, args.users, args.concurrency, args.timeout)
     )
     print_summary(results, total_time)
+    write_results_csv(results, args.output)
+    print(f"\nSaved request answers to {args.output}")
 
 
 if __name__ == "__main__":

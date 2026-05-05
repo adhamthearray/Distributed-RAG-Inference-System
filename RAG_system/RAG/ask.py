@@ -1,14 +1,11 @@
 import chromadb
-from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
-from groq import Groq
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings
+import requests
 
 
-
-
-load_dotenv()
 
 # setting the environment
 
@@ -24,31 +21,37 @@ collection = chroma_client.get_or_create_collection(name="distributedComputing")
 
 # user_query = input("What do you want to know about distributed computing?\n\n")
 
-def ask_question(user_query):
+def ask_question(user_query , GPUserver):
+ 
     results = collection.query(
     query_embeddings=[embedding_model.embed_query(user_query)],
     n_results=6
 )
-    client = Groq(api_key=os.getenv("GROQAPI"))
     system_prompt = """
-You are a helpful assistant for a Distributed Computing course.
-Answer the user's question using only the course documents provided below from the data directory.
-Do not use outside knowledge and do not make things up.
-If the provided course documents do not contain the answer, say: I don't know.
-Keep your answer clear, accurate, and focused on distributed computing concepts.
---------------------
-Course documents:
-"""+str(results['documents'])+"""
-"""
-    response = client.chat.completions.create(
-    model="llama-3.1-8b-instant",
-    messages=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_query}
-    ],
-)
-    answer = response.choices[0].message.content
-    return answer
+        You are a helpful assistant for a Distributed Computing course.
+        Answer the user's question using only the course documents provided below from the data directory.
+        Do not use outside knowledge and do not make things up.
+        If the provided course documents do not contain the answer, say: I don't know.
+        Keep your answer clear, accurate, and focused on distributed computing concepts.
+        --------------------
+        Course documents:
+        """+str(results['documents'])+"""
+
+        User question:
+        """+user_query+"""
+
+        Answer:
+        """
+    payload = {"prompt": system_prompt}
+    response = requests.post(GPUserver, json=payload, timeout=120)
+    data = response.json()
+    result = {
+        'answer' : data['answer'],
+        'gpu_utilization' : data['metrics']['gpu_utilization_percent']
+    }
+    
+    return result 
+ 
 
 
 
@@ -64,4 +67,3 @@ Course documents:
 
 
 #print(system_prompt)
-
