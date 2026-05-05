@@ -21,7 +21,7 @@ class Master:
         self.lock = threading.Lock()
         # Initialize available workers
         hostname = socket.gethostname()
-        self.available_workers = [WorkerNode(f"worker_{hostname}_{i}" , GPU_SERVERS[i]) for i in range(num_workers)]
+        self.available_workers = deque(WorkerNode(f"worker_{hostname}_{i}" , GPU_SERVERS[i]) for i in range(num_workers))
         # Queue for overflow tasks
         self.waiting_tasks = deque()
 
@@ -35,11 +35,13 @@ class Master:
         }
         with self.lock:
             if self.available_workers:
-                worker = self.available_workers[0]
+                worker = self.available_workers.popleft()
                 print(f"[Master] Assigning task {task['task']['task_id']} to {worker.id}", flush=True)
                 if worker.appendTask(task):
-                    self.available_workers.pop()
+                    # self.available_workers.pop()
                     threading.Thread(target=self._execute_task, args=(worker,)).start()
+                else:
+                    self.available_workers.append(worker)
             else:
                 self.waiting_tasks.append(task)
 
