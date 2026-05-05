@@ -1,13 +1,9 @@
-import chromadb
-import os
 from pathlib import Path
-from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
+
+import chromadb
 import requests
+from langchain_huggingface import HuggingFaceEmbeddings
 
-
-
-# setting the environment
 
 BASE_PATH = Path(__file__).parent
 CHROMA_PATH = BASE_PATH / "chroma_db"
@@ -15,55 +11,56 @@ CHROMA_PATH = BASE_PATH / "chroma_db"
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-
 collection = chroma_client.get_or_create_collection(name="distributedComputing")
 
 
-# user_query = input("What do you want to know about distributed computing?\n\n")
+def _build_prompt(query, documents):
+    return """
+You are a helpful assistant for a Distributed Computing course.
+Answer only the question using only the course documents below.
+Do not use outside knowledge.
+Do not write code, examples, labels, headings, or bullet lists.
+Do not repeat the question or these instructions.
+Do not continue the prompt.
+Answer in 1 to 3 concise sentences.
+If the documents do not contain the answer, say exactly: I don't know.
+--------------------
+Course documents:
+""" + "\n\n".join(documents) + """
 
-def ask_question(user_query , GPUserver):
- 
+Question:
+""" + query + """
+
+Answer:
+"""
+
+
+def ask_question(batchData, GPUserver):
+    queries = [item["query"] for item in batchData]
+    query_embeddings = [
+        embedding_model.embed_query(query)
+        for query in queries
+    ]
+
     results = collection.query(
-    query_embeddings=[embedding_model.embed_query(user_query)],
-    n_results=6
-)
-    system_prompt = """
-        You are a helpful assistant for a Distributed Computing course.
-        Answer the user's question using only the course documents provided below from the data directory.
-        Do not use outside knowledge and do not make things up.
-        If the provided course documents do not contain the answer, say: I don't know.
-        Keep your answer clear, accurate, and focused on distributed computing concepts.
-        --------------------
-        Course documents:
-        """+str(results['documents'])+"""
+        query_embeddings=query_embeddings,
+        n_results=6
+    )
 
-        User question:
-        """+user_query+"""
+    requests_batch = []
+    for index, item in enumerate(batchData):
+        documents = results["documents"][index]
+        requests_batch.append({
+            "task_id": item["task_id"],
+            "prompt": _build_prompt(item["query"], documents)
+        })
 
-        Answer:
-        """
-    payload = {"prompt": system_prompt}
+    payload = {"requests": requests_batch}
     response = requests.post(GPUserver, json=payload, timeout=120)
+    response.raise_for_status()
     data = response.json()
-    result = {
-        'answer' : data['answer'],
-        'gpu_utilization' : data['metrics']['gpu_utilization_percent']
-    }
-    
-    return result 
- 
 
+    if "gpu_utilization" not in data:
+        data["gpu_utilization"] = data.get("metrics", {}).get("gpu_utilization_percent")
 
-
-
-
-
-
-
-
-
-
-
-
-
-#print(system_prompt)
+    return data

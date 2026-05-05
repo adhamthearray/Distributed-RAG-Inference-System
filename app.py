@@ -28,43 +28,40 @@ class Master:
     def submit_task(self, task):
         event = threading.Event()
         result_container = {}
-
+        task = {
+            'task' : task,
+            'event' : event,
+            'result_container': result_container
+        }
         with self.lock:
             if self.available_workers:
-                worker = self.available_workers.pop()
-                print(f"[Master] Assigning task {task['task_id']} to {worker.id}", flush=True)
-                # Start non-blocking thread for execution
-                threading.Thread(target=self._execute_task, args=(worker, task, event, result_container)).start()
+                worker = self.available_workers[0]
+                print(f"[Master] Assigning task {task['task']['task_id']} to {worker.id}", flush=True)
+                if worker.appendTask(task):
+                    self.available_workers.pop()
+                    threading.Thread(target=self._execute_task, args=(worker,)).start()
             else:
-                self.waiting_tasks.append((task, event, result_container))
+                self.waiting_tasks.append(task)
 
         return event, result_container
 
-    def _execute_task(self, worker, task, event, result_container):
+    def _execute_task(self, worker):
         try:
-            # The actual execution happens here (calling RAG/LLM inside processTask)
-            result = worker.processTask(task)
-            result_container.update(result)
-        except Exception as e:
-            result_container.update({
-                "ok": False,
-                "task_id": task["task_id"],
-                "worker_id": worker.id,
-                "answer": None,
-                "error": str(e),
-                "status_code": 500
-            })
+            worker.processBatch()
         finally:
-            # Signal that the task is complete so FastAPI can return the response
-            event.set()
-
-            # Schedule the next task or return worker to the available pool
             with self.lock:
-                if self.waiting_tasks:
-                    next_task, next_event, next_result_container = self.waiting_tasks.popleft()
-                    threading.Thread(target=self._execute_task, args=(worker, next_task, next_event, next_result_container)).start()
-                else:
-                    self.available_workers.append(worker)
+                while self.waiting_tasks:
+                    task = self.waiting_tasks.popleft()
+                    worker_full = worker.appendTask(task)
+                    if worker_full:
+                        threading.Thread(target=self._execute_task, args=(worker,)).start()
+                        return
+
+                if worker.hasTasks():
+                    threading.Thread(target=self._execute_task, args=(worker,)).start()
+                    return
+
+                self.available_workers.append(worker)
 
 master = Master(num_workers=NUM_WORKERS)
 
