@@ -22,6 +22,7 @@ print(f"[GPU Server] Using device: {DEVICE}", flush=True)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "left"
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
@@ -84,11 +85,11 @@ def generate(req: GenerateRequest):
         if DEVICE == "cuda":
             torch.cuda.synchronize()
 
-        input_lengths = inputs["attention_mask"].sum(dim=1)
+        prompt_length = inputs["input_ids"].shape[1]
         responses = []
 
         for index, item in enumerate(req.requests):
-            generated_ids = output_ids[index][input_lengths[index]:]
+            generated_ids = output_ids[index][prompt_length:]
             answer = tokenizer.decode(generated_ids, skip_special_tokens=True)
             responses.append({
                 "task_id": item.task_id,
