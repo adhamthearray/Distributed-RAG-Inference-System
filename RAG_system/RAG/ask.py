@@ -1,12 +1,21 @@
+import os
+import random
+import time
 from pathlib import Path
 
 import chromadb
 import requests
+from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 
 
 BASE_PATH = Path(__file__).parent
 CHROMA_PATH = BASE_PATH / "chroma_db"
+load_dotenv(BASE_PATH.parent.parent / ".env")
+
+ENABLE_FAILURE_SIMULATION = os.getenv("ENABLE_FAILURE_SIMULATION").lower() == "true"
+FAILURE_RATE = float(os.getenv("FAILURE_RATE", 0.0))
+SIMULATED_FAILURE_TIMEOUT = float(os.getenv("SIMULATED_FAILURE_TIMEOUT", 10))
 
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -56,6 +65,11 @@ def ask_question(batchData, GPUserver):
         })
 
     payload = {"requests": requests_batch}
+
+    if ENABLE_FAILURE_SIMULATION and random.random() < FAILURE_RATE:
+        time.sleep(SIMULATED_FAILURE_TIMEOUT)
+        raise TimeoutError("Simulated GPU worker timeout")
+
     response = requests.post(GPUserver, json=payload, timeout=120)
     response.raise_for_status()
     data = response.json()

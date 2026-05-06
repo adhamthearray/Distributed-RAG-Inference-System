@@ -61,20 +61,13 @@ class WorkerNode:
         gpu_utilization = response.get("gpu_utilization")
 
         if response.get("ok") is False:
-            error_message = response.get("error", "GPU inference failed")
-            for pending in pending_by_task_id.values():
-                task = pending["task"]
-                pending["result_container"].update({
-                    "ok": False,
-                    "task_id": task["task_id"],
-                    "worker_id": self.id,
-                    "answer": None,
-                    "error": error_message,
-                    "status_code": 500,
-                    "gpu_utilization": gpu_utilization
-                })
-                pending["event"].set()
-            return
+            return {
+                "ok": False,
+                "worker_id": self.id,
+                "batch": batch,
+                "error": response.get("error", "GPU inference failed"),
+                "gpu_utilization": gpu_utilization
+            }
 
         for item in responses:
             task_id = item["task_id"]
@@ -96,21 +89,10 @@ class WorkerNode:
         error_message = str(error)
         status_code = 429 if "429" in error_message or "rate limit" in error_message.lower() else 500
 
-        for item in batch:
-            task = item["task"]
-            item["result_container"].update({
-                "ok": False,
-                "task_id": task["task_id"],
-                "worker_id": self.id,
-                "answer": None,
-                "error": error_message,
-                "status_code": status_code
-            })
-            item["event"].set()
-
         return {
             "ok": False,
             "worker_id": self.id,
+            "batch": batch,
             "error": error_message,
             "status_code": status_code
         }
