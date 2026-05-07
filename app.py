@@ -24,11 +24,30 @@ class Master:
         self.lock = threading.Lock()
         # Initialize available workers
         hostname = socket.gethostname()
-        self.available_workers = deque(WorkerNode(f"worker_{hostname}_{i}" , GPU_SERVERS[i]) for i in range(num_workers))
+        self.workers = [
+            WorkerNode(f"worker_{hostname}_{i}", GPU_SERVERS[i])
+            for i in range(num_workers)
+        ]
+        self.available_workers = deque(self.workers)
         # Queue for overflow tasks
         self.waiting_tasks = deque()
         self.failed_workers = []
         threading.Thread(target=self._timeout_monitor, daemon=True).start()
+
+    def health_status(self):
+        with self.lock:
+            total_workers = len(self.workers)
+            failed_workers = len(self.failed_workers)
+            healthy = total_workers > 0 and failed_workers < total_workers
+
+            return {
+                "ok": healthy,
+                "hostname": socket.gethostname(),
+                "total_workers": total_workers,
+                "available_workers": len(self.available_workers),
+                "failed_workers": failed_workers,
+                "waiting_tasks": len(self.waiting_tasks)
+            }
 
     def submit_task(self, task):
         event = threading.Event()
@@ -160,4 +179,21 @@ async def process_request(req: QueryRequest):
 
 @app.post("/ask")
 async def ask_endpoint(req: QueryRequest):
+    health = master.health_status()
+    if not health["ok"]:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": "Master has no healthy workers available",
+                "health": health
+            }
+        )
+
     return await process_request(req)
+
+@app.get("/health")
+async def health_endpoint():
+    health = master.health_status()
+    status_code = 200 if health["ok"] else 503
+    return JSONResponse(status_code=status_code, content=health)
