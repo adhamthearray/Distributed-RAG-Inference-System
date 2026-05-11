@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from RAG_system.RAG.ask import ask_question
+from RAG_system.RAG.ask import ask_question  
 
 
 load_dotenv(Path(__file__).resolve().parent / ".env")

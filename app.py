@@ -189,7 +189,6 @@ async def ask_endpoint(req: QueryRequest):
                 "health": health
             }
         )
-
     return await process_request(req)
 
 @app.get("/health")
