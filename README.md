@@ -386,9 +386,6 @@ This project demonstrates practical concepts in:
 
 ---
 
-# Contributors
-
-* Adham and Team
 
 ---
 
